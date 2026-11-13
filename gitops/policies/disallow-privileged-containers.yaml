@@ -1,0 +1,49 @@
+# Privileged containers, privilege escalation and host namespaces are not
+# allowed. Together with run-as-non-root this keeps workloads inside the
+# restricted Pod Security profile even where PSA is not enforced.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/description: >-
+      Privileged containers, allowPrivilegeEscalation and host namespaces give a
+      compromised container a path to the node and to other workloads' credentials.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kyverno", "argocd", "monitoring", "external-dns"]
+  variables:
+    # Controllers keep their pod template under spec.template; bare Pods do not.
+    - name: podSpec
+      expression: "has(object.spec.template) ? object.spec.template.spec : object.spec"
+    - name: containers
+      expression: "variables.podSpec.containers"
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          !has(c.securityContext) ||
+          (!(has(c.securityContext.privileged) && c.securityContext.privileged == true) &&
+           !(has(c.securityContext.allowPrivilegeEscalation) && c.securityContext.allowPrivilegeEscalation == true)))
+      message: "Privileged containers and privilege escalation are not allowed."
+    - expression: >-
+        !(has(variables.podSpec.hostNetwork) && variables.podSpec.hostNetwork == true) &&
+        !(has(variables.podSpec.hostPID) && variables.podSpec.hostPID == true) &&
+        !(has(variables.podSpec.hostIPC) && variables.podSpec.hostIPC == true)
+      message: "Host namespaces (hostNetwork, hostPID, hostIPC) are not allowed."

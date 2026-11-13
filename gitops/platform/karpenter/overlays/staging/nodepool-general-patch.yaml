@@ -1,0 +1,14 @@
+# Staging is spot-heavy: general is the default pool and carries most capacity.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: general
+spec:
+  weight: 100
+  disruption:
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "20%"
+  limits:
+    cpu: "96"
+    memory: 384Gi

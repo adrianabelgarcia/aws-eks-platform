@@ -1,0 +1,29 @@
+# Sample workload. Replicas are owned by the HPA, so spec.replicas is ignored in diffs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/adrianabelgarcia/aws-eks-platform.git
+    targetRevision: main
+    path: gitops/apps/sample-api/overlays/staging
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: sample-api
+      jsonPointers:
+        - /spec/replicas
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-api
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

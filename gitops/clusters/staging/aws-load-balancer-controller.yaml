@@ -1,0 +1,45 @@
+# AWS Load Balancer Controller. Pod Identity association is created by Terraform
+# (modules/platform-identities). vpcId must be set from `terraform output vpc_id`;
+# IMDS hop limit is 1 so the controller cannot discover it from metadata.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    targetRevision: "3.6.3"
+    helm:
+      releaseName: aws-load-balancer-controller
+      valuesObject:
+        clusterName: acme-staging
+        region: us-east-1
+        vpcId: vpc-REPLACE-WITH-TERRAFORM-OUTPUT
+        replicaCount: 2
+        serviceAccount:
+          create: true
+          name: aws-load-balancer-controller
+        nodeSelector:
+          node-role: system
+        tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+            effect: NoSchedule
+        podDisruptionBudget:
+          maxUnavailable: 1
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

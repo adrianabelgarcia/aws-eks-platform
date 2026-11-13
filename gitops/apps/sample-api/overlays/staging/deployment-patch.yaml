@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-api
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: ENVIRONMENT
+              value: staging

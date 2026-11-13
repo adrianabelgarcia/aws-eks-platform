@@ -1,0 +1,35 @@
+# Node template shared by all NodePools. Bottlerocket: immutable OS, no SSH,
+# minimal attack surface, and AMI updates driven by Karpenter drift handling
+# instead of in-place patching.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: bottlerocket
+spec:
+  amiSelectorTerms:
+    - alias: bottlerocket@latest
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    # Hop limit 1: pods cannot reach instance metadata. Workloads use EKS Pod
+    # Identity, which does not depend on IMDS.
+    httpPutResponseHopLimit: 1
+    httpTokens: required
+  blockDeviceMappings:
+    # Bottlerocket OS volume (immutable, small).
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 4Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+    # Bottlerocket data volume holds container images and writable state.
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 80Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+  tags:
+    ManagedBy: karpenter
+    Project: aws-eks-platform

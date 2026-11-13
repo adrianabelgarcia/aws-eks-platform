@@ -1,0 +1,153 @@
+# SLO recording and alerting rules for sample-api. Burn-rate alerts follow the
+# multi-window, multi-burn-rate method from the Google SRE Workbook (chapter 5):
+# each alert requires a long window (budget is actually burning) and a short
+# window (it is still burning now), which keeps alerts fast and precise.
+# Objectives and error budgets are documented in docs/slo.md.
+#
+# Assumes the service exports the standard http_requests_total counter with
+# job, code labels and the http_request_duration_seconds histogram.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sample-api-slo
+  namespace: monitoring
+spec:
+  groups:
+    - name: sample-api-slo.recording
+      interval: 30s
+      rules:
+        # Availability SLI: fraction of requests answered with a 5xx.
+        - record: sli:sample_api_http_errors:ratio_rate5m
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[5m]))
+        - record: sli:sample_api_http_errors:ratio_rate30m
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[30m]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[30m]))
+        - record: sli:sample_api_http_errors:ratio_rate1h
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[1h]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[1h]))
+        - record: sli:sample_api_http_errors:ratio_rate2h
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[2h]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[2h]))
+        - record: sli:sample_api_http_errors:ratio_rate6h
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[6h]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[6h]))
+        - record: sli:sample_api_http_errors:ratio_rate1d
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[1d]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[1d]))
+        - record: sli:sample_api_http_errors:ratio_rate3d
+          expr: |
+            sum(rate(http_requests_total{job="sample-api",code=~"5.."}[3d]))
+            /
+            sum(rate(http_requests_total{job="sample-api"}[3d]))
+        # Latency SLI: fraction of requests slower than the 300 ms threshold.
+        # Requires a bucket boundary at le="0.3" on the histogram.
+        - record: sli:sample_api_slow_requests:ratio_rate5m
+          expr: |
+            1 - (
+              sum(rate(http_request_duration_seconds_bucket{job="sample-api",le="0.3"}[5m]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="sample-api"}[5m]))
+            )
+        - record: sli:sample_api_slow_requests:ratio_rate30m
+          expr: |
+            1 - (
+              sum(rate(http_request_duration_seconds_bucket{job="sample-api",le="0.3"}[30m]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="sample-api"}[30m]))
+            )
+        - record: sli:sample_api_slow_requests:ratio_rate1h
+          expr: |
+            1 - (
+              sum(rate(http_request_duration_seconds_bucket{job="sample-api",le="0.3"}[1h]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="sample-api"}[1h]))
+            )
+        - record: sli:sample_api_slow_requests:ratio_rate6h
+          expr: |
+            1 - (
+              sum(rate(http_request_duration_seconds_bucket{job="sample-api",le="0.3"}[6h]))
+              /
+              sum(rate(http_request_duration_seconds_count{job="sample-api"}[6h]))
+            )
+    - name: sample-api-slo.alerts
+      rules:
+        # Availability, 99.9% objective => error budget 0.1% (0.001).
+        - alert: SampleApiAvailabilityBurnRateFast
+          expr: |
+            sli:sample_api_http_errors:ratio_rate1h > (14.4 * 0.001)
+            and
+            sli:sample_api_http_errors:ratio_rate5m > (14.4 * 0.001)
+          for: 2m
+          labels:
+            severity: page
+            slo: sample-api-availability
+          annotations:
+            summary: "sample-api is burning its monthly availability budget at 14.4x"
+            description: "At this rate the 30-day error budget is exhausted in about 2 days. 5xx ratio 1h={{ $value | humanizePercentage }}."
+            runbook_url: https://github.com/adrianabelgarcia/aws-eks-platform/blob/main/docs/runbooks/sample-api-slo-burn.md
+        - alert: SampleApiAvailabilityBurnRateSlow
+          expr: |
+            sli:sample_api_http_errors:ratio_rate6h > (6 * 0.001)
+            and
+            sli:sample_api_http_errors:ratio_rate30m > (6 * 0.001)
+          for: 15m
+          labels:
+            severity: page
+            slo: sample-api-availability
+          annotations:
+            summary: "sample-api is burning its monthly availability budget at 6x"
+            description: "At this rate the 30-day error budget is exhausted in about 5 days."
+            runbook_url: https://github.com/adrianabelgarcia/aws-eks-platform/blob/main/docs/runbooks/sample-api-slo-burn.md
+        - alert: SampleApiAvailabilityBurnRateTicket
+          expr: |
+            sli:sample_api_http_errors:ratio_rate1d > (3 * 0.001)
+            and
+            sli:sample_api_http_errors:ratio_rate2h > (3 * 0.001)
+          for: 1h
+          labels:
+            severity: ticket
+            slo: sample-api-availability
+          annotations:
+            summary: "sample-api availability budget burning at 3x over a day"
+            description: "Not urgent, but the budget will run out within the month if this continues. Open a ticket."
+            runbook_url: https://github.com/adrianabelgarcia/aws-eks-platform/blob/main/docs/runbooks/sample-api-slo-burn.md
+        # Latency, 99% of requests under 300 ms => error budget 1% (0.01).
+        - alert: SampleApiLatencyBurnRateFast
+          expr: |
+            sli:sample_api_slow_requests:ratio_rate1h > (14.4 * 0.01)
+            and
+            sli:sample_api_slow_requests:ratio_rate5m > (14.4 * 0.01)
+          for: 5m
+          labels:
+            severity: page
+            slo: sample-api-latency
+          annotations:
+            summary: "sample-api latency budget burning at 14.4x"
+            description: "More than 14.4% of requests are slower than 300 ms over the last hour and still rising."
+            runbook_url: https://github.com/adrianabelgarcia/aws-eks-platform/blob/main/docs/runbooks/sample-api-slo-burn.md
+        - alert: SampleApiLatencyBurnRateSlow
+          expr: |
+            sli:sample_api_slow_requests:ratio_rate6h > (6 * 0.01)
+            and
+            sli:sample_api_slow_requests:ratio_rate30m > (6 * 0.01)
+          for: 30m
+          labels:
+            severity: ticket
+            slo: sample-api-latency
+          annotations:
+            summary: "sample-api latency budget burning at 6x over six hours"
+            description: "Sustained latency regression. Investigate capacity, downstream dependencies and recent releases."
+            runbook_url: https://github.com/adrianabelgarcia/aws-eks-platform/blob/main/docs/runbooks/sample-api-slo-burn.md

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      # Prod hard-requires zone spread (maxSkew 1). No zone may hold more than
+      # one replica above the emptiest zone, so losing an AZ removes at most
+      # about a third of capacity.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+      containers:
+        - name: api
+          env:
+            - name: ENVIRONMENT
+              value: prod

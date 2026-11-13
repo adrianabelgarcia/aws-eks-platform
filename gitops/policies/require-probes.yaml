@@ -1,0 +1,51 @@
+# Every container needs a readiness probe and a liveness probe with a concrete
+# handler. The API server fills in default probe timings on admission, so this
+# policy checks for the handler (httpGet, tcpSocket, exec or grpc) rather than
+# for timing fields that always exist.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-probes
+  annotations:
+    policies.kyverno.io/title: Require Readiness and Liveness Probes
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Without a readiness probe, Kubernetes routes traffic to pods that are not
+      ready, and without a liveness probe a deadlocked process keeps running.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kyverno", "argocd", "monitoring", "external-dns"]
+  variables:
+    # Controllers keep their pod template under spec.template; bare Pods do not.
+    - name: podSpec
+      expression: "has(object.spec.template) ? object.spec.template.spec : object.spec"
+    - name: containers
+      expression: "variables.podSpec.containers"
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          has(c.readinessProbe) &&
+          (has(c.readinessProbe.httpGet) || has(c.readinessProbe.tcpSocket) ||
+           has(c.readinessProbe.exec) || has(c.readinessProbe.grpc)))
+      message: "Every container must define a readinessProbe with an httpGet, tcpSocket, exec or grpc handler."
+    - expression: >-
+        variables.containers.all(c,
+          has(c.livenessProbe) &&
+          (has(c.livenessProbe.httpGet) || has(c.livenessProbe.tcpSocket) ||
+           has(c.livenessProbe.exec) || has(c.livenessProbe.grpc)))
+      message: "Every container must define a livenessProbe with an httpGet, tcpSocket, exec or grpc handler."

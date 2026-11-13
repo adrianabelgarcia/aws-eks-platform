@@ -1,0 +1,48 @@
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".tflint.hcl"
+      - ".checkov.yaml"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".tflint.hcl"
+      - ".checkov.yaml"
+      - ".github/workflows/terraform.yml"
+
+# One run per PR (or per branch on push). A newer push cancels the older run so
+# two applies never race on the same state.
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  staging:
+    uses: adrianabelgarcia/aws-iac-foundations/.github/workflows/terraform.yml@v1
+    with:
+      working-directory: terraform/envs/staging
+      environment: staging
+      aws-region: us-east-1
+      aws-role-arn: ${{ vars.AWS_ROLE_ARN_STAGING }}
+      apply: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+  prod:
+    needs: staging
+    uses: adrianabelgarcia/aws-iac-foundations/.github/workflows/terraform.yml@v1
+    with:
+      working-directory: terraform/envs/prod
+      environment: prod
+      aws-region: us-east-1
+      aws-role-arn: ${{ vars.AWS_ROLE_ARN_PROD }}
+      apply: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}

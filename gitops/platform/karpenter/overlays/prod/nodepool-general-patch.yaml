@@ -1,0 +1,23 @@
+# Prod: spot is opt-in. General has a lower weight than baseline, so pods
+# without a capacity-type selector land on on-demand baseline capacity.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: general
+spec:
+  weight: 50
+  disruption:
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+      # Block voluntary consolidation during US Eastern business hours
+      # (13:00-21:00 UTC, Mon-Fri). Drift and underutilised replacements wait.
+      - nodes: "0"
+        schedule: "0 13 * * mon-fri"
+        duration: 8h
+        reasons:
+          - Underutilized
+          - Drifted
+  limits:
+    cpu: "400"
+    memory: 1600Gi

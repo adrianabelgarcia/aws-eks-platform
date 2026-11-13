@@ -1,0 +1,53 @@
+# ExternalDNS manages Route53 records for Ingress and Service hostnames.
+# upsert-only: never deletes records it did not create (TXT ownership).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://kubernetes-sigs.github.io/external-dns/
+    chart: external-dns
+    targetRevision: "1.23.0"
+    helm:
+      releaseName: external-dns
+      valuesObject:
+        provider:
+          name: aws
+        serviceAccount:
+          create: true
+          name: external-dns
+        sources:
+          - service
+          - ingress
+        domainFilters:
+          - staging.acme-demo.dev
+        policy: upsert-only
+        registry: txt
+        txtOwnerId: acme-staging
+        interval: 1m
+        env:
+          - name: AWS_REGION
+            value: us-east-1
+        nodeSelector:
+          node-role: system
+        tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+            effect: NoSchedule
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

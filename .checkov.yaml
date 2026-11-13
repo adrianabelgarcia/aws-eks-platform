@@ -1,0 +1,12 @@
+# Checkov configuration shared by local runs and the reusable CI workflow.
+# Findings are fixed in code. Any skip must be an inline
+# `#checkov:skip=CKV_...: <justification>` comment next to the resource.
+framework:
+  - terraform
+skip-path:
+  - .terraform
+  - .rendered
+download-external-modules: false
+compact: true
+quiet: true
+soft-fail: false

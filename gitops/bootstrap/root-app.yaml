@@ -1,0 +1,31 @@
+# Root of the app-of-apps for the staging cluster.
+#
+# Terraform (modules/gitops-bootstrap) creates this same Application through the
+# argocd-apps chart on every environment. This file is the reference copy used for
+# disaster recovery on a rebuilt cluster, or for a manual bootstrap:
+#
+#   kubectl apply -f gitops/bootstrap/root-app.yaml
+#
+# For prod, change spec.source.path to gitops/clusters/prod.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/adrianabelgarcia/aws-eks-platform.git
+    targetRevision: main
+    path: gitops/clusters/staging
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

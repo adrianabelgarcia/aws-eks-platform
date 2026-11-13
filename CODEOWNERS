@@ -1,0 +1,10 @@
+# Default owner for everything not matched below.
+*                    @adrianabelgarcia
+
+# Infrastructure and cluster state need a platform owner's review.
+/terraform/          @adrianabelgarcia
+/gitops/policies/    @adrianabelgarcia
+/gitops/clusters/    @adrianabelgarcia
+
+# Pipelines and repository policy.
+/.github/            @adrianabelgarcia

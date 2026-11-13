@@ -1,0 +1,45 @@
+# Every container must declare CPU and memory requests, and a memory limit.
+# CPU limits are deliberately not required: they cause throttling without
+# improving density, and Karpenter bin-packs on requests.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-requests-limits
+  annotations:
+    policies.kyverno.io/title: Require Resource Requests and Memory Limits
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Scheduling and autoscaling depend on accurate requests. Missing requests
+      make Karpenter bin-packing and HPA utilisation meaningless, and missing
+      memory limits let one container evict its neighbours.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kyverno", "argocd", "monitoring", "external-dns"]
+  variables:
+    # Controllers keep their pod template under spec.template; bare Pods do not.
+    - name: podSpec
+      expression: "has(object.spec.template) ? object.spec.template.spec : object.spec"
+    - name: containers
+      expression: "variables.podSpec.containers"
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          has(c.resources) && has(c.resources.requests) &&
+          has(c.resources.requests.cpu) && has(c.resources.requests.memory) &&
+          has(c.resources.limits) && has(c.resources.limits.memory))
+      message: "Every container must set resources.requests.cpu, resources.requests.memory and resources.limits.memory."

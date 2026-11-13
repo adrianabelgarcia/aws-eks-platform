@@ -1,0 +1,13 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: bottlerocket
+spec:
+  # Must match the node role Terraform creates: <cluster_name>-karpenter-node.
+  role: acme-prod-karpenter-node
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: acme-prod
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: acme-prod

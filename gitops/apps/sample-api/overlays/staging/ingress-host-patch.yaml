@@ -1,0 +1,5 @@
+# JSON 6902: the base rule has no host, so set it here. A strategic merge would
+# append a second rule because Ingress rules are keyed by host.
+- op: add
+  path: /spec/rules/0/host
+  value: sample-api.staging.acme-demo.dev

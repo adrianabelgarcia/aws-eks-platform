@@ -1,0 +1,12 @@
+# The namespace enforces the Pod Security Admission "restricted" profile. Any
+# workload that would violate it is rejected by the API server before Kyverno
+# even runs.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sample-api
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

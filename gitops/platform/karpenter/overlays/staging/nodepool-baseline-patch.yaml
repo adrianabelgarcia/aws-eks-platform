@@ -1,0 +1,11 @@
+# Small on-demand fallback in staging. Lower weight than general, so it only
+# receives pods that explicitly select it.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: baseline
+spec:
+  weight: 10
+  limits:
+    cpu: "16"
+    memory: 64Gi

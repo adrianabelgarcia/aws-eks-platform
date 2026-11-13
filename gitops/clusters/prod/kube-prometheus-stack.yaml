@@ -1,0 +1,88 @@
+# kube-prometheus-stack. EKS does not expose etcd, controller-manager, scheduler
+# or kube-proxy metrics the usual way, so those scrape targets are disabled.
+# Grafana admin credentials come from the grafana-admin Secret (sealed out of band, never in git).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "93.2.2"
+    helm:
+      releaseName: kube-prometheus-stack
+      valuesObject:
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          nodeSelector:
+            node-role: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+              effect: NoSchedule
+        prometheusOperator:
+          nodeSelector:
+            node-role: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Exists
+              effect: NoSchedule
+        alertmanager:
+          alertmanagerSpec:
+            nodeSelector:
+              node-role: system
+            tolerations:
+              - key: CriticalAddonsOnly
+                operator: Exists
+                effect: NoSchedule
+        prometheus:
+          prometheusSpec:
+            retention: 15d
+            retentionSize: 90GB
+            replicas: 1
+            ruleSelectorNilUsesHelmValues: false
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            nodeSelector:
+              node-role: system
+            tolerations:
+              - key: CriticalAddonsOnly
+                operator: Exists
+                effect: NoSchedule
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3-encrypted
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 100Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

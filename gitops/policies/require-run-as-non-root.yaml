@@ -1,0 +1,40 @@
+# Workloads must run as a non-root user. Set runAsNonRoot at pod level so every
+# container inherits it.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-run-as-non-root
+  annotations:
+    policies.kyverno.io/title: Require Run As Non-Root
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Running as UID 0 inside a container makes container-escape CVEs far more
+      damaging. Requiring a non-root user is part of the restricted profile.
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets"]
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kyverno", "argocd", "monitoring", "external-dns"]
+  variables:
+    # Controllers keep their pod template under spec.template; bare Pods do not.
+    - name: podSpec
+      expression: "has(object.spec.template) ? object.spec.template.spec : object.spec"
+  validations:
+    - expression: >-
+        has(variables.podSpec.securityContext) &&
+        has(variables.podSpec.securityContext.runAsNonRoot) &&
+        variables.podSpec.securityContext.runAsNonRoot == true
+      message: "Pods must set securityContext.runAsNonRoot to true."

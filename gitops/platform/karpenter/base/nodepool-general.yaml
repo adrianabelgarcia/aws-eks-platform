@@ -1,0 +1,48 @@
+# General-purpose capacity. Spot is preferred (cheapest capacity that is
+# available), with on-demand as the fallback when spot is exhausted. Workloads
+# that tolerate interruption opt in with nodeSelector karpenter.sh/capacity-type.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: general
+spec:
+  template:
+    metadata:
+      labels:
+        workload.acme-demo.dev/pool: general
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: bottlerocket
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64", "amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m", "r"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["5"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: NotIn
+          values: ["nano", "micro", "small", "medium"]
+      # Nodes are recycled after a week so OS and kubelet patches roll out
+      # without a manual change.
+      expireAfter: 168h
+      terminationGracePeriod: 2h
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "10%"
+  limits:
+    cpu: "64"
+    memory: 256Gi

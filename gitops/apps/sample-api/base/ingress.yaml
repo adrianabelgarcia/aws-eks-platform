@@ -1,0 +1,32 @@
+# Public HTTPS entry point. The AWS Load Balancer Controller provisions an ALB
+# in the public subnets with IP targets (pod IPs via the VPC CNI). ExternalDNS
+# creates the DNS record from the hostname annotation set in each overlay.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sample-api
+  labels:
+    app.kubernetes.io/component: api
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /readyz
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "10"
+    alb.ingress.kubernetes.io/deregistration-delay.timeout_seconds: "30"
+    alb.ingress.kubernetes.io/load-balancer-attributes: deletion_protection.enabled=true,routing.http.drop_invalid_header_fields.enabled=true
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/tags: Project=aws-eks-platform,ManagedBy=aws-load-balancer-controller
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sample-api
+                port:
+                  name: http

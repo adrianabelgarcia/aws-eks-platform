@@ -1,0 +1,20 @@
+# Prod on-demand baseline: highest weight, so it is the default landing pool.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: baseline
+spec:
+  weight: 100
+  disruption:
+    consolidateAfter: 15m
+    budgets:
+      - nodes: "1"
+      - nodes: "0"
+        schedule: "0 13 * * mon-fri"
+        duration: 8h
+        reasons:
+          - Underutilized
+          - Drifted
+  limits:
+    cpu: "400"
+    memory: 1600Gi
