@@ -7,6 +7,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directories:
@@ -18,8 +20,12 @@ updates:
     groups:
       terraform-modules:
         patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: pre-commit
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
